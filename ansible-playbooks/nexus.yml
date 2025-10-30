@@ -1,0 +1,105 @@
+---
+# Main playbook for Nexus Repository Manager installation
+# Designed for ansible-pull execution
+
+- name: Configure Nexus Repository Manager
+hosts: localhost
+connection: local
+become: true
+
+vars:
+nexus_version: "3.64.0-04"
+nexus_data_dir: "/opt/sonatype-work"
+nexus_user: "nexus"
+nexus_group: "nexus"
+nexus_port: 8081
+
+tasks:
+- name: Install Java (OpenJDK 11)
+ansible.builtin.apt:
+name: openjdk-11-jdk
+state: present
+update_cache: true
+
+- name: Create Nexus system user
+ansible.builtin.user:
+name: "{{ nexus_user }}"
+system: true
+home: "{{ nexus_data_dir }}"
+create_home: false
+shell: /bin/false
+
+- name: Create Nexus directories
+ansible.builtin.file:
+path: "{{ item }}"
+state: directory
+owner: "{{ nexus_user }}"
+group: "{{ nexus_group }}"
+mode: '0755'
+loop:
+- /opt/nexus
+- "{{ nexus_data_dir }}"
+
+- name: Download Nexus
+ansible.builtin.get_url:
+url: "https://download.sonatype.com/nexus/3/nexus-{{ nexus_version }}-unix.tar.gz"
+dest: /tmp/nexus.tar.gz
+mode: '0644'
+
+- name: Extract Nexus
+ansible.builtin.unarchive:
+src: /tmp/nexus.tar.gz
+dest: /opt/nexus
+remote_src: true
+extra_opts: [--strip-components=1]
+owner: "{{ nexus_user }}"
+group: "{{ nexus_group }}"
+
+- name: Configure Nexus to run as nexus user
+ansible.builtin.lineinfile:
+path: /opt/nexus/bin/nexus.rc
+regexp: '^#run_as_user=""'
+line: 'run_as_user="nexus"'
+create: true
+mode: '0644'
+
+- name: Create systemd service
+ansible.builtin.copy:
+content: |
+[Unit]
+Description=Nexus Repository Manager
+After=network.target
+
+[Service]
+Type=forking
+LimitNOFILE=65536
+ExecStart=/opt/nexus/bin/nexus start
+ExecStop=/opt/nexus/bin/nexus stop
+User={{ nexus_user }}
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+dest: /etc/systemd/system/nexus.service
+mode: '0644'
+notify: Reload systemd
+
+- name: Enable and start Nexus
+ansible.builtin.systemd:
+name: nexus
+enabled: true
+state: started
+
+- name: Wait for Nexus to be ready
+ansible.builtin.uri:
+url: "http://localhost:{{ nexus_port }}"
+status_code: 200
+register: result
+until: result.status == 200
+retries: 30
+delay: 10
+
+handlers:
+- name: Reload systemd
+ansible.builtin.systemd:
+daemon_reload: true

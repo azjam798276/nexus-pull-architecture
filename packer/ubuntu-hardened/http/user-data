@@ -1,0 +1,40 @@
+#cloud-config
+autoinstall:
+version: 1
+locale: en_US.UTF-8
+keyboard:
+layout: us
+
+# Network configuration
+network:
+network:
+version: 2
+ethernets:
+ens18:
+dhcp4: true
+
+# Storage configuration
+storage:
+layout:
+name: direct
+
+# User configuration
+identity:
+hostname: ubuntu-template
+username: ubuntu
+password: "$6$rounds=4096$saltsalt$hash" # ubuntu/ubuntu (temp)
+
+# SSH configuration
+ssh:
+install-server: true
+allow-pw: true
+
+# Packages to install
+packages:
+- qemu-guest-agent
+- cloud-init
+
+# Late commands
+late-commands:
+- echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/ubuntu
+- chmod 440 /target/etc/sudoers.d/ubuntu

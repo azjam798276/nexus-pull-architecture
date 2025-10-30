@@ -1,0 +1,18 @@
+[Unit]
+Description=Ansible Pull Webhook Receiver
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/webhook-receiver
+ExecStart=/usr/bin/python3 /opt/webhook-receiver/webhook_receiver.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/ansible-webhook-service.log
+StandardError=append:/var/log/ansible-webhook-service.log
+
+[Install]
+WantedBy=multi-user.target
